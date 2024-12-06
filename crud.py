@@ -1,6 +1,6 @@
 import os
 import json
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Callable
 
 
 class Book:
@@ -31,7 +31,7 @@ class Book:
 
     def add_book(self, title: str, author: str, year: str) -> None:
         """
-
+        Add book
         :param title: name of the book
         :param author: author name
         :param year: year
@@ -40,8 +40,8 @@ class Book:
         if not title or not author or not year:
             raise ValueError(f"Invalid value: {title}, {author}, {year}")
 
-        books = self._read_file()
-        max_id = max((book.get("id", 0) for book in books), default=0)  # get last id
+        books: List[Dict] = self._read_file()
+        max_id: int = max((book.get("id", 0) for book in books), default=0)  # get last id
 
         book = {
             "id": max_id + 1,
@@ -60,7 +60,7 @@ class Book:
         All books!
         :return:
         """
-        books = self._read_file()
+        books: List[Dict] = self._read_file()
         if not books:
             print("Library is empty.")
             return None
@@ -68,7 +68,7 @@ class Book:
         return books
 
     def delete_book(self, book_id: int) -> None:
-        books = self._read_file()
+        books: List[Dict] = self._read_file()
         for idx, book in enumerate(books):
             if book.get("id") == book_id:
                 del books[idx]
@@ -85,9 +85,9 @@ class Book:
         :param query: query for search
         :return: List of found books.
         """
-        books = self._read_file()
+        books: List[Dict] = self._read_file()
 
-        results = [
+        results: List[Dict] = [
             book for book in books
             if any(
                 query.lower() in str(book[field]).lower()  # Checking query in field
@@ -102,10 +102,16 @@ class Book:
         return results
 
     def update_status(self, book_id: int, status: str) -> None:
+        """
+        Status update
+        :param book_id: id of book
+        :param status: status string
+        :return: None! returns info about success or fail print()
+        """
         if status not in self.status.values():
             raise ValueError(f"Invalid status: {status}")
 
-        books = self._read_file()
+        books: List[Dict] = self._read_file()
         for book in books:
             if book.get("id") == book_id:
                 book["status"] = status
@@ -184,6 +190,3 @@ class BookManager:
                 print('Invalid status choice.')
         except ValueError:
             print('Invalid input. Please enter a valid number.')
-
-
-
