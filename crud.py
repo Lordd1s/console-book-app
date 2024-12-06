@@ -1,143 +1,189 @@
 import os
 import json
-
-from typing import List, Dict
-
-from utils import search_util, get_book_by_id, path_exists
+from typing import List, Dict, Optional
 
 
-FILE_PATH: str = 'library.json'
-STATUS = {
-    'IN_STOCK': 'В наличии',
-    'ISSUED': 'Выдана'
-}
-path = path_exists(FILE_PATH)
+class Book:
+    def __init__(self, file_path: str = "library.json"):
+        self.file_path: str = file_path
+        self.status: dict = {
+            "IN_STOCK": "В наличии",
+            "ISSUED": "Выдана"
+        }
+
+    def _file_exists(self) -> bool:  # check file exists
+        return os.path.exists(self.file_path)
+
+    def _read_file(self) -> List[Dict]:
+        # reading file
+        if not self._file_exists():
+            return []
+
+        try:
+            with open(self.file_path, "r", encoding="utf-8") as file:
+                return json.load(file)
+        except json.JSONDecodeError:
+            return []
+
+    def _write_file(self, data: List[Dict]) -> None:  # write to json
+        with open(self.file_path, "w", encoding="utf-8") as file:
+            json.dump(data, file, indent=4, ensure_ascii=False)
+
+    def add_book(self, title: str, author: str, year: str) -> None:
+        """
+
+        :param title: name of the book
+        :param author: author name
+        :param year: year
+        :return: None! returns message from print()
+        """
+        if not title or not author or not year:
+            raise ValueError(f"Invalid value: {title}, {author}, {year}")
+
+        books = self._read_file()
+        max_id = max((book.get("id", 0) for book in books), default=0)  # get last id
+
+        book = {
+            "id": max_id + 1,
+            "title": title,
+            "author": author,
+            "year": year,
+            "status": self.status["IN_STOCK"]
+        }
+
+        books.append(book)
+        self._write_file(books)
 
 
-def add_book(title: str, author: str, year: int) -> None:
-    if not title or not author or not year:
-        raise ValueError(f'Invalid value: {title}, {author}, {year}')
+    def view_all_books(self) -> Optional[List[Dict]]:
+        """
+        All books!
+        :return:
+        """
+        books = self._read_file()
+        if not books:
+            print("Library is empty.")
+            return None
 
-    book: dict = {
-        'title': title,
-        'author': author,
-        'year': year,
-        'status': STATUS['IN_STOCK']
-    }
+        return books
 
-    if path:
-        with open(FILE_PATH, 'r+') as file:
-            try:
-                data: list[dict] = json.load(file)
-            except json.JSONDecodeError:
-                data: list = []
-    else:
-        data: list = []
-
-    max_id: int = max((item.get('id', 0) for item in data), default=0)
-    book['id'] = max_id + 1
-    data.append(book)
-
-    with open(FILE_PATH, 'w') as file:
-        json.dump(data, file, indent=4, ensure_ascii=False)
-
-
-def view_all_books() -> List[Dict] | None:
-    if path:
-        with open(FILE_PATH, 'r') as file:
-            try:
-                data: List[Dict] = json.load(file)
-                return data
-            except json.JSONDecodeError:
-                print("Library is empty")
-                return None
-    print("File does not exist")
-    return None
-
-
-def delete_book(book_id: int) -> None:
-    if path:
-        with open(FILE_PATH, 'r', encoding='UTF-8') as file:
-            try:
-                books: List[Dict] = json.load(file)
-            except json.JSONDecodeError:
-                print("File is corrupted or empty.")
-                return
-
-        for idx, itm in enumerate(books):
-            if itm.get('id') == book_id:
+    def delete_book(self, book_id: int) -> None:
+        books = self._read_file()
+        for idx, book in enumerate(books):
+            if book.get("id") == book_id:
                 del books[idx]
-                with open(FILE_PATH, 'w', encoding='UTF-8') as file:
-                    json.dump(books, file, indent=4, ensure_ascii=False)
-                print('Successfully deleted')
+                self._write_file(books)
+                print("Book successfully deleted.")
                 return
 
         print(f"No book found with ID {book_id}.")
-    else:
-        print('File does not exist.')
+
+    def search_book(self, query: str) -> List[Dict]:
+        """
+        search book in fields (title, author, year).
+
+        :param query: query for search
+        :return: List of found books.
+        """
+        books = self._read_file()
+
+        results = [
+            book for book in books
+            if any(
+                query.lower() in str(book[field]).lower()  # Checking query in field
+                for field in {"title", "author", "year"}  # Fields
+            )
+        ]
+
+        if not results:
+            print(f"No books found for query '{query}'.")
+            return []
+
+        return results
+
+    def update_status(self, book_id: int, status: str) -> None:
+        if status not in self.status.values():
+            raise ValueError(f"Invalid status: {status}")
+
+        books = self._read_file()
+        for book in books:
+            if book.get("id") == book_id:
+                book["status"] = status
+                self._write_file(books)
+                print(f"Book status updated to '{status}'.")
+                return
+
+        print(f"No book found with ID {book_id}.")
 
 
-def search_book(search_query: str | int) -> Dict | None:
-    if search_query is None:
-        raise ValueError('Invalid input')
+class BookManager:
+    def __init__(self):
+        self.book = Book()
 
-    if path:
+    def add_book(self):
+        print('Write a "title", "author", "year" to add a new book!')
         try:
-            with open(FILE_PATH, 'r') as file:
-                books: List[Dict] = json.load(file)
-                return search_util(books=books, search_obj=search_query)
-        except json.JSONDecodeError:
-            print('File empty')
-    else:
-        print("File does not exist.")
-    return None
+            title = input("Book name: ")
+            author = input("Author name: ")
+            year = input("Year: ")
+            self.book.add_book(title, author, year)
+            print('Book successfully added.')
+        except ValueError:
+            print("Invalid input. Please provide correct data like: 'Art of masterpiece' John Doe 2000")
 
-
-def update_book(book_id: int, new_data: Dict) -> None:
-    if path:
+    def delete_book(self):
         try:
-            with open(FILE_PATH, 'r+', encoding='UTF-8') as file:
-                try:
-                    books: List[Dict] = json.load(file)
-                except json.JSONDecodeError:
-                    print("File is empty or corrupted.")
-                    return
+            book_id = int(input('Please input ID of book to delete: '))
+            self.book.delete_book(book_id)
+        except ValueError:
+            print('Invalid input. Please provide a numeric ID.')
 
-                book = get_book_by_id(books, book_id)
-                if book is None:
-                    print(f"No book found with ID {book_id}.")
-                    return
+    def search_book(self):
+        query = input("Please type author name, book name, or year: ")
+        result = self.book.search_book(query=query)
+        if result:
+            for book in result:
+                print(
+                    f"ID: {book['id']}\n"
+                    f"Title: {book['title']}\n"
+                    f"Author: {book['author']}\n"
+                    f"Year: {book['year']}\n"
+                    f"Status: {book['status']}\n"
+                    "----------------------"
+                )
+        else:
+            print('No matching books found.')
 
-                book.update(new_data)
-                file.seek(0)
-                json.dump(books, file, indent=4, ensure_ascii=False)
-                file.truncate()
-                print("Book successfully updated.")
-        except Exception as e:
-            print(f"An unexpected error occurred: {e}")
-    else:
-        print('File does not exist')
+    def view_all_books(self):
+        books = self.book.view_all_books()
+        if books:
+            for book in books:
+                print(
+                    f"ID: {book['id']}\n"
+                    f"Title: {book['title']}\n"
+                    f"Author: {book['author']}\n"
+                    f"Year: {book['year']}\n"
+                    f"Status: {book['status']}\n"
+                    "----------------------"
+                )
+        else:
+            print('No books in the library.')
 
-
-def update_status(book_id: int, status: str) -> None:
-    if path:
+    def update_book_status(self):
         try:
-            with open(FILE_PATH, 'r+', encoding='UTF-8') as file:
-                try:
-                    books: List[Dict] = json.load(file)
-                except json.JSONDecodeError:
-                    print("File is empty or corrupted.")
-                    return
+            book_id = int(input('Please input ID of book to update status: '))
+            print('Choose status (Enter a number):')
+            print('[0] IN STOCK')
+            print('[1] ISSUED')
+            status_choice = int(input())
+            if status_choice == 0:
+                self.book.update_status(book_id, 'В наличии')
+            elif status_choice == 1:
+                self.book.update_status(book_id, 'Выдана')
+            else:
+                print('Invalid status choice.')
+        except ValueError:
+            print('Invalid input. Please enter a valid number.')
 
-                for book in books:
-                    if book.get("id") == book_id:
-                        book["status"] = status
-                        file.seek(0)
-                        json.dump(books, file, indent=4, ensure_ascii=False)
-                        file.truncate()
-                        print(f"Book status updated to '{status}'.")
-                        return
 
-                print(f"No book found with ID {book_id}.")
-        except Exception as e:
-            print(f"An unexpected error occurred: {e}")
+
